@@ -11,7 +11,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20160421145916) do
+ActiveRecord::Schema.define(version: 20160512141208) do
 
   create_table "admin_rates", force: :cascade do |t|
     t.integer  "line_item_id", limit: 4
@@ -509,6 +509,8 @@ ActiveRecord::Schema.define(version: 20160421145916) do
     t.datetime "created_at",                                 null: false
     t.datetime "updated_at",                                 null: false
     t.datetime "deleted_at"
+    t.integer  "lft",          limit: 4
+    t.integer  "rgt",          limit: 4
   end
 
   add_index "organizations", ["is_available"], name: "index_organizations_on_is_available", using: :btree
@@ -1089,6 +1091,25 @@ ActiveRecord::Schema.define(version: 20160421145916) do
   end
 
   add_index "tags", ["name"], name: "index_tags_on_name", unique: true, using: :btree
+
+  create_table "temp", force: :cascade do |t|
+    t.string   "type",         limit: 255
+    t.string   "name",         limit: 255
+    t.integer  "order",        limit: 4
+    t.string   "css_class",    limit: 255,   default: ""
+    t.text     "description",  limit: 65535
+    t.integer  "parent_id",    limit: 4
+    t.string   "abbreviation", limit: 255
+    t.text     "ack_language", limit: 65535
+    t.boolean  "process_ssrs",               default: false
+    t.boolean  "is_available",               default: true
+    t.datetime "created_at",                                 null: false
+    t.datetime "updated_at",                                 null: false
+    t.datetime "deleted_at"
+  end
+
+  add_index "temp", ["is_available"], name: "index_organizations_on_is_available", using: :btree
+  add_index "temp", ["parent_id"], name: "index_organizations_on_parent_id", using: :btree
 
   create_table "toast_messages", force: :cascade do |t|
     t.integer  "from",             limit: 4

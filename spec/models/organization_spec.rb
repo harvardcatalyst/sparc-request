@@ -118,39 +118,23 @@ RSpec.describe 'organization' do
       end
     end
 
-    describe 'children' do
-
-      it 'should return only the provider if it is an institution' do
-        expect(institution.children(Organization.all)).to include(provider)
-        expect(institution.children(Organization.all)).not_to include(program)
-      end
-
-      it 'should return the program if it is a provider' do
-        expect(provider.children(Organization.all)).to include(program)
-      end
-
-      it 'should return the core if it is a program' do
-        expect(program.children(Organization.all)).to include(core)
-      end
-    end
-
     describe 'all children' do
 
       it 'should return itself if it is a core' do
-        expect(core.all_children(Organization.all)).to eq([core])
+        expect(core.reload.all_children).to eq([core])
       end
 
       it 'should return the core if it is a program' do
-        expect(program.all_children(Organization.all)).to include(core)
-        expect(program.all_children(Organization.all)).not_to include(core2)
+        expect(program.reload.all_children).to include(core)
+        expect(program.reload.all_children).not_to include(core2)
       end
 
       it 'should return multiple programs and cores if it is a provider' do
-        expect(provider.all_children(Organization.all)).to include(core, core2, program, program2)
+        expect(provider.reload.all_children).to include(core, core2, program, program2)
       end
 
       it 'should return everything if it is an institution' do
-        expect(institution.all_children(Organization.all)).to include(core, core2, program, program2, provider)
+        expect(institution.reload.all_children).to include(core, core2, program, program2, provider)
       end
     end
 
@@ -162,8 +146,10 @@ RSpec.describe 'organization' do
       let!(:program_service)             { create(:service, organization_id: program_organization.id) }
       let!(:core_service)                { create(:service, organization_id: core_organization.id) }
 
+      before(:each) { program_organization.reload }
+
       it "should return true if a service has a service provider in the tree" do
-        service_provider = create(:service_provider, organization_id: provider_organization.id)
+        create(:service_provider, organization_id: provider_organization.id)
         expect(program_organization.service_providers_for_child_services?).to eq(true)
       end
 
@@ -172,7 +158,7 @@ RSpec.describe 'organization' do
       end
 
       it "should return false if there is a service provider, but it's only on the current organization" do
-        service_provider = create(:service_provider, organization_id: program_organization.id)
+        create(:service_provider, organization_id: program_organization.id)
         expect(program_organization.service_providers_for_child_services?).to eq(false)
       end
     end
@@ -190,15 +176,15 @@ RSpec.describe 'organization' do
       end
 
       it 'should return the correct service for a core' do
-        expect(core.all_child_services).to eq([service])
+        expect(core.reload.all_child_services).to eq([service])
       end
 
       it 'should return the services under a program with cores' do
-        expect(program.all_child_services).to eq([service])
+        expect(program.reload.all_child_services).to eq([service])
       end
 
       it 'should return the services under a program without cores' do
-        expect(program3.all_child_services).to eq([service3])
+        expect(program3.reload.all_child_services).to eq([service3])
       end
 
       it 'should return the services under a program that offers both services and cores' do
@@ -206,15 +192,15 @@ RSpec.describe 'organization' do
         prog_core = create(:core, parent_id: prog.id)
         serv1 = create(:service, organization_id: prog.id)
         serv2 = create(:service, organization_id: prog_core.id)
-        expect(prog.all_child_services).to include(serv1, serv2)
+        expect(prog.reload.all_child_services).to include(serv1, serv2)
       end
 
       it 'should return the services under a provider' do
-        expect(provider.all_child_services).to include(service, service2, service3)
+        expect(provider.reload.all_child_services).to include(service, service2, service3)
       end
 
       it 'should return the services under an institution' do
-        expect(institution.all_child_services).to include(service, service2, service3)
+        expect(institution.reload.all_child_services).to include(service, service2, service3)
       end
     end
   end
@@ -381,32 +367,32 @@ RSpec.describe 'organization' do
     describe "all service providers" do
 
       it "should return an organization's own service providers" do
-        expect(program.all_service_providers).to include(service_provider)
+        expect(program.reload.all_service_providers).to include(service_provider)
       end
 
       it "should return the parent's service providers" do
-        expect(core.all_service_providers).to include(service_provider)
+        expect(core.reload.all_service_providers).to include(service_provider)
       end
 
       it "should return the child's service providers if process ssrs is set" do
         provider.update_attributes(process_ssrs: 1)
-        expect(provider.all_service_providers).to include(service_provider)
+        expect(provider.reload.all_service_providers).to include(service_provider)
       end
     end
 
     describe "all super users" do
 
       it "should return an organization's own super users" do
-        expect(program.all_super_users).to include(super_user)
+        expect(program.reload.all_super_users).to include(super_user)
       end
 
       it "should return the parent's super users" do
-        expect(core.all_super_users).to include(super_user)
+        expect(core.reload.all_super_users).to include(super_user)
       end
 
       it "should return the child's super users" do
         provider.update_attributes(process_ssrs: 1)
-        expect(provider.all_super_users).to include(super_user)
+        expect(provider.reload.all_super_users).to include(super_user)
       end
     end
 

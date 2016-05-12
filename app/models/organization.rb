@@ -25,6 +25,25 @@ class Organization < ActiveRecord::Base
   audited
   acts_as_taggable
 
+  before_save do
+    # should be in a transaction of some sort...
+    if self.id.nil? # insert new organization
+      if self.parent_id == nil
+        # new top-level Organization
+        self.lft = (Organization.maximum(:rgt) || 0) + 1
+        self.rgt = self.lft + 1
+      else
+        # new child organization. add as last child to parent Organization
+        self.lft = parent(0).rgt
+        self.rgt = self.lft + 1
+        # shift the lft and rgt columns of Organizations "to the right"
+        # of new Organization by 2
+        ActiveRecord::Base.connection.execute("UPDATE organizations SET rgt = rgt + 2 WHERE rgt > #{self.lft - 1};")
+        ActiveRecord::Base.connection.execute("UPDATE organizations SET lft = lft + 2 WHERE lft > #{self.lft - 1};")
+      end
+    end
+  end
+
   belongs_to :parent, :class_name => 'Organization'
   has_many :submission_emails, :dependent => :destroy
   has_many :pricing_setups, :dependent => :destroy
@@ -82,25 +101,19 @@ class Organization < ActiveRecord::Base
 
   # Returns an array of organizations, the current organization's parents, in order of climbing
   # the tree backwards (thus if called on a core it will return => [program, provider, institution]).
-  def parents id_only=false
-    my_parents = []
-    if parent
-      my_parents << (id_only ? parent.id : parent)
-      my_parents.concat(parent.parents id_only)
+  def parents(id_only=false)
+    if id_only
+      Organization.where("lft < ? AND rgt > ?", lft, rgt).order(lft: :desc).pluck(:id)
+    else
+      Organization.where("lft < ? AND rgt > ?", lft, rgt).order(lft: :desc)
     end
-
-    my_parents
   end
 
   # Returns the first organization amongst the current organization's parents where the process_ssrs
   # flag is set to true.  Will return self if self has the flag set true.  Will return nil if no
   # organization in the hierarchy is found that has the flag set to true.
   def process_ssrs_parent
-    if self.process_ssrs
-      return self
-    else
-      return self.parents.select {|x| x.process_ssrs}.first
-    end
+    Organization.where("lft <= ? AND rgt >= ? AND process_ssrs = 1", lft, rgt).order(lft: :desc).first
   end
 
   def service_providers_lookup
@@ -130,38 +143,21 @@ class Organization < ActiveRecord::Base
     false
   end
 
-  # Returns the immediate children of this organization (shallow search)
-  def children orgs
-    children = []
-
-    orgs.each do |org|
-      if org.parent_id == self.id
-        children << org
-      end
-    end
-
-    children
-  end
-
   # Returns an array of all children (and children of children) of this organization (deep search).
   # Optionally includes self
-  def all_children (all_children=[], include_self=true, orgs)
-    self.children(orgs).each do |child|
-      all_children << child
-      child.all_children(all_children, orgs)
+  def all_children(include_self=true)
+    if include_self
+      Organization.where("lft >= ? AND rgt <= ?", lft, rgt)
+    else
+      Organization.where("lft > ? AND rgt < ?", lft, rgt)
     end
-
-    all_children << self if include_self
-
-    all_children.uniq
   end
 
   # Returns an array of all services that are offered by this organization as well of all of its
   # deep children.
-  def all_child_services include_self=true
-    orgs = Organization.all
+  def all_child_services(include_self=true)
     all_services = []
-    children = self.all_children [], include_self, orgs
+    children = self.all_children(include_self)
     children.each do |child|
       if child.services
         services = Service.where(:organization_id => child.id).includes(:pricing_maps)
@@ -280,12 +276,11 @@ class Organization < ActiveRecord::Base
   # service providers, as well as the service providers on all parents.  If the process_ssrs flag
   # is true at this organization, also returns the service providers of all children.
   def all_service_providers(include_children=true)
-    orgs = Organization.all
     all_service_providers = []
 
     # If process_ssrs is true, we need to also get our children's service providers
     if self.process_ssrs and include_children
-      self.all_children(orgs).each do |child|
+      self.all_children.each do |child|
         all_service_providers << child.service_providers
       end
     end
@@ -305,12 +300,11 @@ class Organization < ActiveRecord::Base
   # super users, as well as the super users on all parents.  If the process_ssrs flag
   # is true at this organization, also returns the super users of all children.
   def all_super_users
-    orgs = Organization.all
     all_super_users = []
 
     # If process_ssrs is true, we need to also get our children's super users
     if self.process_ssrs
-      self.all_children(orgs).each do |child|
+      self.all_children.each do |child|
         all_super_users << child.super_users
       end
     end
