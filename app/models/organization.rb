@@ -60,7 +60,9 @@ class Organization < ActiveRecord::Base
   has_many :identities, :through => :catalog_managers
   has_many :services, :dependent => :destroy
   has_many :sub_service_requests, :dependent => :destroy
+  has_many :protocols, through: :sub_service_requests
   has_many :available_statuses, :dependent => :destroy
+  has_many :org_children, class_name: "Organization", foreign_key: :parent_id
 
   attr_accessible :name
   attr_accessible :order
@@ -82,11 +84,22 @@ class Organization < ActiveRecord::Base
   accepts_nested_attributes_for :submission_emails
   accepts_nested_attributes_for :available_statuses, :allow_destroy => true
 
-  scope :authorized_for_identity, -> (identity_id) {
-    # returns organizations for which
-    # identity_id is service provider or super user.
-    joins(:service_providers).joins(:super_users).
-    where("service_providers.identity_id = ? OR super_users.identity_id = ?", identity_id, identity_id)
+  # TODO: In rails 5, the .or operator will be added for ActiveRecord queries. We should try to
+  #       condense this to a single query at that point
+  scope :authorized_for_identity, -> (identity_id, sp_only=false) {
+    super_user_orgs                 = joins(:super_users).where(super_users: {identity_id: identity_id} ).distinct
+    service_provider_orgs           = joins(:service_providers).where(service_providers: {identity_id: identity_id} ).distinct
+
+    super_user_orgs_children        = authorized_child_organizations(super_user_orgs.pluck(:id))
+    service_provider_orgs_children  = authorized_child_organizations(service_provider_orgs.pluck(:id))
+
+    # To get around merge-and in activerecord, we get all the organizations as an array, then convert it back
+    # to an ActiveRecord Relation through another query on the IDs
+    if sp_only
+      Organization.where(id: (service_provider_orgs | service_provider_orgs_children)).where.not(id: (super_user_orgs | super_user_orgs_children)).distinct
+    else
+      Organization.where(id: (super_user_orgs | super_user_orgs_children | service_provider_orgs | service_provider_orgs_children) ).distinct
+    end
   }
 
   scope :in_cwf, -> { joins(:tags).where(tags: { name: 'clinical work fulfillment' }) }
@@ -141,6 +154,37 @@ class Organization < ActiveRecord::Base
     end
 
     false
+  end
+
+  # Returns the immediate children of this organization (shallow search)
+  def children orgs
+    children = []
+
+    orgs.each do |org|
+      if org.parent_id == self.id
+        children << org
+      end
+    end
+
+    children
+  end
+
+  def all_child_organizations
+    [
+      org_children,
+      org_children.map(&:all_child_organizations)
+    ].flatten
+  end
+
+  def child_orgs_with_protocols
+    organizations = all_child_organizations
+    organizations_with_protocols = []
+    organizations.flatten.uniq.each do |organization|
+      if organization.protocols.any?
+        organizations_with_protocols << organization
+      end
+    end
+    organizations_with_protocols.flatten.uniq
   end
 
   # Returns an array of all children (and children of children) of this organization (deep search).
@@ -350,6 +394,17 @@ class Organization < ActiveRecord::Base
       self.parent.has_tag? tag
     else
       return false
+    end
+  end
+
+  private
+
+  def self.authorized_child_organizations(org_ids)
+    if org_ids.empty?
+      []
+    else
+      orgs = Organization.where(parent_id: org_ids)
+      orgs | authorized_child_organizations(orgs.pluck(:id))
     end
   end
 end

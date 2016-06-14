@@ -11,7 +11,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20160512141208) do
+ActiveRecord::Schema.define(version: 20160608151717) do
 
   create_table "admin_rates", force: :cascade do |t|
     t.integer  "line_item_id", limit: 4
@@ -634,16 +634,15 @@ ActiveRecord::Schema.define(version: 20160512141208) do
   add_index "project_roles", ["protocol_id"], name: "index_project_roles_on_protocol_id", using: :btree
 
   create_table "protocol_filters", force: :cascade do |t|
-    t.integer  "identity_id",     limit: 4
-    t.string   "search_name",     limit: 255
+    t.integer  "identity_id",       limit: 4
+    t.string   "search_name",       limit: 255
     t.boolean  "show_archived"
-    t.integer  "for_admin",       limit: 4
-    t.integer  "for_identity_id", limit: 4
-    t.string   "search_query",    limit: 255
-    t.integer  "with_core",       limit: 4
-    t.string   "with_status",     limit: 255
+    t.string   "search_query",      limit: 255
+    t.string   "with_organization", limit: 255
+    t.string   "with_status",       limit: 255
     t.datetime "created_at"
     t.datetime "updated_at"
+    t.string   "admin_filter",      limit: 255
   end
 
   create_table "protocols", force: :cascade do |t|
@@ -884,6 +883,7 @@ ActiveRecord::Schema.define(version: 20160512141208) do
     t.boolean  "one_time_fee",                                                 default: false
     t.integer  "line_items_count",      limit: 4,                              default: 0
     t.text     "components",            limit: 65535
+    t.integer  "eap_id",                limit: 4
   end
 
   add_index "services", ["is_available"], name: "index_services_on_is_available", using: :btree
@@ -1091,25 +1091,6 @@ ActiveRecord::Schema.define(version: 20160512141208) do
   end
 
   add_index "tags", ["name"], name: "index_tags_on_name", unique: true, using: :btree
-
-  create_table "temp", force: :cascade do |t|
-    t.string   "type",         limit: 255
-    t.string   "name",         limit: 255
-    t.integer  "order",        limit: 4
-    t.string   "css_class",    limit: 255,   default: ""
-    t.text     "description",  limit: 65535
-    t.integer  "parent_id",    limit: 4
-    t.string   "abbreviation", limit: 255
-    t.text     "ack_language", limit: 65535
-    t.boolean  "process_ssrs",               default: false
-    t.boolean  "is_available",               default: true
-    t.datetime "created_at",                                 null: false
-    t.datetime "updated_at",                                 null: false
-    t.datetime "deleted_at"
-  end
-
-  add_index "temp", ["is_available"], name: "index_organizations_on_is_available", using: :btree
-  add_index "temp", ["parent_id"], name: "index_organizations_on_parent_id", using: :btree
 
   create_table "toast_messages", force: :cascade do |t|
     t.integer  "from",             limit: 4
