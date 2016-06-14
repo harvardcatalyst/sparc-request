@@ -129,11 +129,10 @@ class Protocol < ActiveRecord::Base
     default_filter_params: { show_archived: 0 },
     available_filters: [
       :search_query,
-      :for_identity_id,
-      :for_admin,
+      :admin_filter,
       :show_archived,
       :with_status,
-      :with_core
+      :with_organization
     ]
   )
 
@@ -160,15 +159,44 @@ class Protocol < ActiveRecord::Base
   scope :for_identity_id, -> (identity_id) {
     return nil if identity_id == '0'
     joins(:project_roles).
-    where(project_roles: { identity_id: identity_id }).
-    where.not(project_roles: { project_rights: 'none' })
+      where(project_roles: { identity_id: identity_id }).
+      where.not(project_roles: { project_rights: 'none' })
+  }
+
+  scope :admin_filter, -> (params) {
+    filter, id  = params.split(" ")
+    if filter == 'for_admin'
+      return filtered_for_admin(id)
+    elsif filter == 'for_identity'
+      return for_identity_id(id)
+    end
   }
 
   scope :for_admin, -> (identity_id) {
     # returns protocols with ssrs in orgs authorized for identity_id
     return nil if identity_id == '0'
     joins(:organizations).
-    merge( Organization.authorized_for_identity(identity_id) ).distinct
+      merge( Organization.authorized_for_identity(identity_id) ).distinct
+  }
+
+  scope :filtered_for_admin, -> (identity_id) {
+    # returns protocols with ssrs in orgs authorized for identity_id
+    return nil if identity_id == '0'
+
+    # We want to find all protocols where the user is an Admin AND Authorized User
+    # as they will be filtered out by the SP Only Organizations queries
+    sp_only_admin_orgs        = Organization.authorized_for_identity(identity_id, true)
+
+    if sp_only_admin_orgs.any?
+      admin_protocols           = for_admin(identity_id)
+      authorized_user_protocols = joins(:project_roles).where(project_roles: { identity_id: identity_id })
+      visible_admin_protocols   = admin_protocols.to_a.reject { |p| p.should_be_hidden_for_sp?(sp_only_admin_orgs) }
+      
+      # TODO: In rails 5, we can do an or-merge to create a single query for this entire process
+      where(id: (authorized_user_protocols | visible_admin_protocols)).distinct
+    else
+      for_admin(identity_id)
+    end
   }
 
   scope :show_archived, -> (boolean) {
@@ -182,7 +210,7 @@ class Protocol < ActiveRecord::Base
     where(sub_service_requests: { status: status }).distinct
   }
 
-  scope :with_core, -> (org_id) {
+  scope :with_organization, -> (org_id) {
     # returns protocols with ssrs in org_id
     return nil if org_id == "" or org_id == [""]
     joins(:sub_service_requests).
@@ -408,17 +436,6 @@ class Protocol < ActiveRecord::Base
     return self.service_requests.any? { |sr| sr.should_push_to_epic? }
   end
 
-  def has_ctrc_clinical_services? current_service_request_id
-    self.service_requests.each do |sr|
-      next if sr.id == current_service_request_id
-      if sr.has_ctrc_clinical_services? and sr.status != 'first_draft'
-        return sr.id
-      end
-    end
-
-    return nil
-  end
-
   def has_nexus_services?
     self.service_requests.each do |sr|
       if sr.has_ctrc_clinical_services? and sr.status != 'first_draft'
@@ -429,14 +446,14 @@ class Protocol < ActiveRecord::Base
     return false
   end
 
-  def find_sub_service_request_with_ctrc current_service_request_id
-    id = has_ctrc_clinical_services? current_service_request_id
-    service_request = self.service_requests.find id
+  def find_sub_service_request_with_ctrc(service_request)
     service_request.sub_service_requests.each do |ssr|
       if ssr.ctrc?
         return ssr.ssr_id
       end
     end
+
+    return nil
   end
 
   def any_service_requests_to_display?
@@ -514,6 +531,10 @@ class Protocol < ActiveRecord::Base
     if remove_arms
       self.arms.destroy_all
     end
+  end
+
+  def should_be_hidden_for_sp?(sp_only_admin_orgs)
+    (service_requests.reject { |sr| sr.should_be_hidden_for_sp?(sp_only_admin_orgs) }).empty?
   end
 
   private

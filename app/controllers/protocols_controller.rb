@@ -56,7 +56,13 @@ class ProtocolsController < ApplicationController
       @current_step = 'user_details'
       @protocol.populate_for_edit
     elsif @current_step == 'user_details' and @protocol.valid?
+      unless @protocol.project_roles.map(&:identity_id).include? current_user.id
+        # if current user is not authorized, add them as an authorized user
+        @protocol.project_roles.new(identity_id: current_user.id, role: 'general-access-user', project_rights: 'approve')
+      end
+
       @protocol.save
+
       @current_step = 'return_to_service_request'
 
       if @service_request
@@ -110,7 +116,7 @@ class ProtocolsController < ApplicationController
 
     if @current_step == 'cancel'
       @current_step = 'return_to_service_request'
-    elsif @current_step == 'go_back'
+    elsif @current_step == 'go_back' and @protocol.valid?
       @current_step = 'protocol'
       @protocol.populate_for_edit
     elsif @current_step == 'protocol' and @protocol.group_valid? :protocol
@@ -125,6 +131,9 @@ class ProtocolsController < ApplicationController
       if @service_request.status == "first_draft"
         @service_request.update_attributes(status: "draft")
       end
+    elsif @current_step == 'go_back' and !@protocol.valid?
+      @current_step = 'user_details'
+      @protocol.populate_for_edit
     else
       @protocol.populate_for_edit
     end

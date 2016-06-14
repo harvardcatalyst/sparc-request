@@ -34,7 +34,7 @@
       / Human Subjects selected begin
       .human_subjects_dependent{ display_if(rt_form.object.human_subjects) }
         = form.fields_for :human_subjects_info do |hs_form|
-          .form-group.row
+          .form-group.row.nct-number
             = hs_form.label :nct_number, t(:protocols)[:studies][:research_involving][:humans][:nct_number], class: 'col-lg-2 control-label'
             .col-lg-10
               = hs_form.text_field :nct_number, class: 'form-control'
@@ -75,6 +75,11 @@
             .col-lg-10
               = hs_form.text_field :irb_expiration_date, class: 'form-control', value: (protocol.human_subjects_info.irb_expiration_date.strftime('%_m/%d/%Y') rescue nil)
               = hs_form.hidden_field :irb_expiration_date
+
+          .form-group.row
+            = form.label :study_phase, t(:protocols)[:studies][:information][:phase], class: 'col-lg-2 control-label'
+            .col-lg-10
+              = form.select :study_phase, options_for_select(STUDY_PHASES, protocol.study_phase), { include_blank: t(:protocols)[:prompts][:phase] }, class: 'selectpicker'
       / Human Subjects selected end
 
       .form-group.row.vertebrate_animals
@@ -121,7 +126,7 @@
             .col-lg-10
               = ip_form.text_field :ind_number, class: 'form-control'
 
-          .form-group.row
+          .form-group.row#ind-on-hold-group{ display_if(!ip_form.object.ind_number.blank?) }
             = ip_form.label :ind_on_hold, t(:protocols)[:studies][:research_involving][:products][:ind_on_hold], class: 'col-lg-2 control-label'
             .col-lg-1
               = ip_form.check_box :ind_on_hold, class: 'form-control'

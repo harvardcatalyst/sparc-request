@@ -77,6 +77,7 @@ RSpec.describe 'service request list', js: true do
         context 'user selects themselves in dropdown' do
           it 'should alert user that notifications cannot be sent to themselves' do
             page = go_to_show_protocol(protocol.id)
+            wait_for_javascript_to_finish
             first_ssr = page.service_requests.first.ssrs.first
 
             first_ssr.send_notification_select.click
@@ -91,6 +92,7 @@ RSpec.describe 'service request list', js: true do
         context 'user selects someone other than themselves in dropdown and fills in modal' do
           it 'should send a notification to that user' do
             page = go_to_show_protocol(protocol.id)
+            wait_for_javascript_to_finish
             first_ssr = page.service_requests.first.ssrs.first
             easter_bunny = Identity.where(first_name: "Easter", last_name: "Bunny").first
 
@@ -147,33 +149,37 @@ RSpec.describe 'service request list', js: true do
         organization_id: organization.id)
     end
 
-    scenario 'user clicks "Edit Original" button' do
+    scenario 'user clicks "Modify Request" button' do
       page = go_to_show_protocol(protocol.id)
+      wait_for_javascript_to_finish
 
-      page.service_requests.first.edit_original_button.click
+      page.service_requests.first.modify_request_button.click
 
       expect(URI.parse(current_url).path).to eq "/service_requests/#{service_request.id}/catalog"
     end
 
-    scenario 'user clicks "View SSR" button' do
+    scenario 'user clicks "View" button' do
       page = go_to_show_protocol(protocol.id)
+      wait_for_javascript_to_finish
 
-      page.service_requests.first.ssrs.first.view_ssr_button.click
+      page.service_requests.first.ssrs.first.view_button.click
 
       page.wait_for_view_ssr_modal
       expect(page).to have_view_ssr_modal
     end
 
-    scenario 'user clicks "Edit SSR" button' do
+    scenario 'user clicks "Edit" button' do
       page = go_to_show_protocol(protocol.id)
+      wait_for_javascript_to_finish
 
-      page.service_requests.first.ssrs.first.edit_ssr_button.click
+      page.service_requests.first.ssrs.first.edit_button.click
 
       expect(URI.parse(current_url).path).to eq "/service_requests/#{service_request.id}/catalog"
     end
 
     scenario 'user clicks "Admin Edit" button' do
       page = go_to_show_protocol(protocol.id)
+      wait_for_javascript_to_finish
 
       page.service_requests.first.ssrs.first.admin_edit_button.click
 
